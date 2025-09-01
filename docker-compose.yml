@@ -21,24 +21,34 @@ services:
       - "traefik.http.routers.dashboard.middlewares=basicauth"
     networks: [core]
 
-  firewall:
-    build: ./firewall
+   firewall:
+    build:
+      context: ./firewall
+      dockerfile: Dockerfile
+    image: local/fastapi-firewall:latest   # also tags your local build
+    container_name: ai-firewall
+    restart: unless-stopped
+    env_file: .env
     environment:
-      - TZ=${TZ}
-      - FIREWALL_MODE=${FIREWALL_MODE}
-      - FIREWALL_UPSTREAM=${FIREWALL_UPSTREAM}
-      - FIREWALL_BLOCKLIST_PATH=${FIREWALL_BLOCKLIST_PATH}
-      - FIREWALL_OUTPUT_RULES_PATH=${FIREWALL_OUTPUT_RULES_PATH}
+      TZ: "${TZ}"
+      FIREWALL_MODE: "${FIREWALL_MODE}"
+      FIREWALL_UPSTREAM: "${FIREWALL_UPSTREAM}"
+      FIREWALL_BLOCKLIST_PATH: "${FIREWALL_BLOCKLIST_PATH}"
+      FIREWALL_OUTPUT_RULES_PATH: "${FIREWALL_OUTPUT_RULES_PATH}"
     volumes:
-      - ./firewall/rules:/rules:ro
-      - ./volumes/firewall-logs:/logs
+      - firewall_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/healthz"]
+      interval: 15s
+      timeout: 3s
+      retries: 20
+    networks:
+      - ai_net
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.firewall.rule=PathPrefix(`/v1`)"
-      - "traefik.http.services.firewall.loadbalancer.server.port=8081"
-    depends_on:
-      - openwebui
-    networks: [core]
+      - "traefik.http.routers.firewall.rule=Host(`fw.localhost`)"
+      - "traefik.http.routers.firewall.entrypoints=web"
+      - "traefik.http.services.firewall.loadbalancer.server.port=8000"
 
   openwebui:
     image: ghcr.io/open-webui/open-webui:main
