@@ -1,0 +1,76 @@
+services:
+  traefik:
+    image: traefik:v3.1
+    command:
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+      - --entrypoints.web.address=:${TRAEFIK_HTTP_PORT}
+      - --api.dashboard=true
+    ports:
+      - "${TRAEFIK_HTTP_PORT}:${TRAEFIK_HTTP_PORT}"
+    volumes:
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+    environment:
+      - TZ=${TZ}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=PathPrefix(`/dashboard`) || PathPrefix(`/api`)"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.middlewares.basicauth.basicauth.users=${TRAEFIK_DASHBOARD_USER}:${TRAEFIK_DASHBOARD_PASS}"
+      - "traefik.http.routers.dashboard.middlewares=basicauth"
+    networks: [core]
+
+  firewall:
+    build: ./firewall
+    environment:
+      - TZ=${TZ}
+      - FIREWALL_MODE=${FIREWALL_MODE}
+      - FIREWALL_UPSTREAM=${FIREWALL_UPSTREAM}
+      - FIREWALL_BLOCKLIST_PATH=${FIREWALL_BLOCKLIST_PATH}
+      - FIREWALL_OUTPUT_RULES_PATH=${FIREWALL_OUTPUT_RULES_PATH}
+    volumes:
+      - ./firewall/rules:/rules:ro
+      - ./volumes/firewall-logs:/logs
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.firewall.rule=PathPrefix(`/v1`)"
+      - "traefik.http.services.firewall.loadbalancer.server.port=8081"
+    depends_on:
+      - openwebui
+    networks: [core]
+
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:main
+    environment:
+      - TZ=${TZ}
+      - OLLAMA_API_BASE=http://ollama:11434
+      - WEBUI_AUTH=${OPENWEBUI_AUTH}
+      - WEBUI_USERNAME=${OPENWEBUI_ADMIN}
+      - WEBUI_PASSWORD=${OPENWEBUI_PASSWORD}
+    volumes:
+      - ./volumes/openwebui:/app/backend/data
+    ports:
+      - "${OPENWEBUI_PORT}:8080"
+    depends_on:
+      - ollama
+    networks: [core]
+
+  ollama:
+    image: ollama/ollama:latest
+    environment:
+      - TZ=${TZ}
+      - OLLAMA_NUM_GPU=${OLLAMA_NUM_GPU}
+    volumes:
+      - ./volumes/ollama:/root/.ollama
+    ports:
+      - "${OLLAMA_PORT}:11434"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: ["gpu"]
+    networks: [core]
+
+networks:
+  core: {}

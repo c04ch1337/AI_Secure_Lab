@@ -1,0 +1,6 @@
+http:
+  middlewares:
+    basicauth:
+      basicAuth:
+        users:
+          - "${TRAEFIK_DASHBOARD_USER}:${TRAEFIK_DASHBOARD_PASS}"

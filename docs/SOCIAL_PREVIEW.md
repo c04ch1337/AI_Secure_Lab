@@ -1,0 +1,1 @@
+Use `docs/assets/banner.svg` as the repository social preview image in GitHub settings.
